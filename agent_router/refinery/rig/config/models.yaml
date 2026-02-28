@@ -1,0 +1,97 @@
+# Agent Router - Model Configuration
+# Maps Gas Town roles to AI model backends
+
+version: 1
+
+# Default model for roles not explicitly configured
+default: claude-sonnet
+
+# Model definitions - CLI commands and capabilities
+models:
+  claude-opus:
+    cli: claude
+    model_flag: opus
+    capabilities: [code, reasoning, analysis]
+    cost_tier: high
+
+  claude-sonnet:
+    cli: claude
+    model_flag: sonnet
+    capabilities: [code, reasoning]
+    cost_tier: medium
+
+  claude-haiku:
+    cli: claude
+    model_flag: haiku
+    capabilities: [simple-tasks, monitoring]
+    cost_tier: low
+
+  gemini-pro:
+    cli: gemini
+    capabilities: [code, reasoning, multimodal]
+    cost_tier: medium
+
+  gemini-flash:
+    cli: /Users/jamesbeach/Documents/visual-studio-code/github-copilot/gastown/agents/gemini-agent
+    flags: ["--model", "gemini-2.5-flash"]
+    capabilities: [code, simple-tasks]
+    cost_tier: low
+
+  gpt-4o:
+    cli: /Users/jamesbeach/Documents/visual-studio-code/github-copilot/gastown/agents/gpt4o
+    flags: []
+    capabilities: [code, structured-output, api-design, json]
+    cost_tier: medium
+
+  gpt-4o-mini:
+    cli: /Users/jamesbeach/Documents/visual-studio-code/github-copilot/gastown/agents/gpt4o-mini
+    flags: []
+    capabilities: [simple-tasks, boilerplate, tests]
+    cost_tier: low
+
+  perplexity:
+    cli: /Users/jamesbeach/Documents/visual-studio-code/github-copilot/gastown/agents/perplexity
+    capabilities: [research, web-search, citations]
+    cost_tier: medium
+
+# Role to model mappings
+roles:
+  # Gas Town infrastructure roles
+  mayor: claude-opus        # Coordination requires strong reasoning
+  deacon: claude-haiku      # Background monitoring - cost effective
+  witness: claude-haiku     # Health checks - simple tasks
+  refinery: claude-sonnet   # Merge queue - needs good judgment
+
+  # Worker roles
+  polecat: claude-sonnet    # Code implementation - default
+  crew: claude-sonnet       # Human-managed workers
+
+  # Specialized task types (can override polecat default)
+  research: perplexity      # Web research tasks
+  review: gemini-pro        # Code review
+  documentation: claude-haiku  # Doc writing - simpler
+  scaffolding: gpt-4o       # Boilerplate generation, API stubs
+  tests: gpt-4o-mini        # Unit test generation (high volume, simple)
+
+# Task-based overrides (matched against bead labels/types)
+task_overrides:
+  - match:
+      labels: ["research", "investigation"]
+    model: perplexity
+
+  - match:
+      labels: ["review", "audit"]
+    model: gemini-pro
+
+  - match:
+      labels: ["scaffold", "boilerplate", "api-stub"]
+    model: gpt-4o
+
+  - match:
+      labels: ["test", "unit-test", "test-generation"]
+    model: gpt-4o-mini
+
+  - match:
+      type: bug
+      priority: [0, 1]  # P0, P1 bugs
+    model: claude-opus  # Critical bugs get best model

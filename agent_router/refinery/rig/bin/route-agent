@@ -1,0 +1,96 @@
+#!/bin/bash
+# Agent Router - Route agent spawns to appropriate model backend
+#
+# Usage: route-agent [args...]
+#
+# Reads GT_ROLE from environment (set by gt sling) and routes to the
+# appropriate model backend based on config/models.yaml.
+#
+# Integration with gt sling:
+#   gt config agent set router /path/to/route-agent
+#   gt sling issue rig --agent router
+#
+# Or set as default:
+#   gt config agent set claude /path/to/route-agent
+
+set -e
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+CONFIG_DIR="$(dirname "$SCRIPT_DIR")/config"
+CONFIG_FILE="$CONFIG_DIR/models.yaml"
+
+# Get role from environment (set by gt sling) or argument
+ROLE="${GT_ROLE:-}"
+
+# Allow role override via --role flag for testing
+if [[ "$1" == "--role" && -n "$2" ]]; then
+    ROLE="$2"
+    shift 2
+fi
+
+# Fallback to polecat if no role specified
+if [[ -z "$ROLE" ]]; then
+    ROLE="polecat"
+fi
+
+# Check dependencies
+if ! command -v yq &> /dev/null; then
+    echo "[agent-router] Error: yq is required. Install with: brew install yq" >&2
+    exit 1
+fi
+
+# Check config exists
+if [[ ! -f "$CONFIG_FILE" ]]; then
+    echo "[agent-router] Error: Config not found: $CONFIG_FILE" >&2
+    exit 1
+fi
+
+# Get model for role from config
+MODEL=$(yq -r ".roles.$ROLE // .default" "$CONFIG_FILE")
+
+if [[ -z "$MODEL" || "$MODEL" == "null" ]]; then
+    echo "[agent-router] Error: No model configured for role '$ROLE'" >&2
+    exit 1
+fi
+
+# Get CLI and flags for model
+CLI=$(yq -r ".models.$MODEL.cli" "$CONFIG_FILE")
+MODEL_FLAG=$(yq -r ".models.$MODEL.model_flag // \"\"" "$CONFIG_FILE")
+# Read custom flags array from config
+CUSTOM_FLAGS=$(yq -r ".models.$MODEL.flags // [] | .[]" "$CONFIG_FILE" 2>/dev/null)
+
+if [[ -z "$CLI" || "$CLI" == "null" ]]; then
+    echo "[agent-router] Error: No CLI configured for model '$MODEL'" >&2
+    exit 1
+fi
+
+# Build command arguments
+CMD_ARGS=()
+
+# Add autonomy flags based on CLI
+case "$CLI" in
+    claude)
+        CMD_ARGS+=("--dangerously-skip-permissions")
+        if [[ -n "$MODEL_FLAG" ]]; then
+            CMD_ARGS+=("--model" "$MODEL_FLAG")
+        fi
+        ;;
+    gemini|*/gemini-agent)
+        CMD_ARGS+=("--approval-mode" "yolo")
+        ;;
+    *)
+        # Other CLIs - just pass through
+        ;;
+esac
+
+# Add custom flags from config (for models with flags array)
+if [[ -n "$CUSTOM_FLAGS" ]]; then
+    while IFS= read -r flag; do
+        CMD_ARGS+=("$flag")
+    done <<< "$CUSTOM_FLAGS"
+fi
+
+echo "[agent-router] $ROLE → $MODEL → $CLI ${CMD_ARGS[*]}" >&2
+
+# Execute the appropriate CLI with model flags and all passed arguments
+exec "$CLI" "${CMD_ARGS[@]}" "$@"
