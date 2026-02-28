@@ -43,6 +43,43 @@ graph TB
     style Rig2 fill:#fff4e1,color:#000000
 ```
 
+---
+
+## Multi-Model Orchestration (gastown-mission-district fork)
+
+This repository is a fork of [steveyegge/gastown](https://github.com/steveyegge/gastown)
+that extends the base system with **multi-model AI agent orchestration** and **Gemini image generation**.
+
+### What's Different
+
+- **Multiple AI backends**: Claude, GPT-4o, GPT-4o-mini, Gemini Pro, Gemini Flash, and Perplexity
+  can each be assigned to different agent roles (polecats, mayor, refinery, etc.)
+- **Gemini Imagen integration**: Rapid generation of style assets and reference images
+  directly from the agent workflow
+- **Token usage tracking**: Per-model usage tracking via `bin/gt-usage`
+- **Multi-model router**: `agent_router/` town wires requests to the right model
+  based on task type and cost
+
+### Agent Scripts
+
+| Script | Model | Role |
+|--------|-------|------|
+| `agents/claude-tracked` | Claude (Anthropic) | Default — tracked usage |
+| `agents/gemini-pro` | Gemini Pro | Reasoning / complex tasks |
+| `agents/gemini-flash` | Gemini Flash | Fast / cheap tasks |
+| `agents/gpt4o` | GPT-4o | Alternative reasoning |
+| `agents/gpt4o-mini` | GPT-4o-mini | Fast / cheap tasks |
+| `agents/perplexity` | Perplexity | Web search / research |
+| `agents/imagen` | Gemini Imagen | Image generation |
+| `agents/imagen-batch` | Gemini Imagen | Batch image generation |
+
+### Quick Setup
+
+See [`GEMINI-SETUP.md`](GEMINI-SETUP.md) and [`GETTING-STARTED.md`](GETTING-STARTED.md)
+for setup instructions. Full multi-model documentation is in [`docs/MULTI-MODEL-AGENTS.md`](docs/MULTI-MODEL-AGENTS.md).
+
+---
+
 ## Core Concepts
 
 ### The Mayor 🎩

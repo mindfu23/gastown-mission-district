@@ -66,3 +66,19 @@ result
 
 # bv (beads viewer) local config and caches
 .bv/
+
+# Town worktrees - git worktree checkouts inside towns (never track these)
+*/mayor/rig
+*/crew/james
+*/refinery/rig
+*/.repo.git/
+
+# Runtime lock files
+daemon/daemon.lock
+daemon/daemon.log
+daemon/daemon.pid
+daemon/activity.json
+
+# Town runtime state
+**/registry.json
+**/polecats/
