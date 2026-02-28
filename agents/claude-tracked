@@ -1,0 +1,116 @@
+#!/bin/bash
+# Claude Tracked Agent for Gastown
+# Wraps the built-in Claude Code CLI with usage tracking
+#
+# This wrapper:
+# - Passes all arguments through to the real claude command
+# - Estimates token usage from session duration and output
+# - Logs to the same usage.jsonl as other agents
+#
+# Note: Token counts are ESTIMATES based on:
+# - Input: prompt length / 4 (rough chars-to-tokens)
+# - Output: response length / 4
+# - These are approximations since Claude Code doesn't expose exact counts
+#
+# Environment Variables:
+#   GT_RIG      - Current rig (set by Gastown)
+#   GT_CONVOY   - Current convoy (set by Gastown)
+#   BD_ISSUE    - Current issue/task ID (set by Gastown)
+
+set -e
+
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+
+# Source usage tracking library
+if [[ -f "$SCRIPT_DIR/lib/usage-tracker.sh" ]]; then
+    source "$SCRIPT_DIR/lib/usage-tracker.sh"
+    TRACKING_ENABLED=true
+else
+    TRACKING_ENABLED=false
+    echo "[claude-tracked] Warning: usage-tracker.sh not found, tracking disabled" >&2
+fi
+
+# Task identification
+TASK_ID="${BD_ISSUE:-${GT_TASK:-claude-session-$$}}"
+
+# Determine model tier (Claude Code uses Sonnet by default, Opus for complex)
+# We'll default to Sonnet pricing as that's most common
+MODEL="claude-sonnet"
+
+# Check for model hints in arguments
+for arg in "$@"; do
+    case "$arg" in
+        *opus*|*OPUS*) MODEL="claude" ;;  # Opus pricing
+        *haiku*|*HAIKU*) MODEL="claude-haiku" ;;
+        *sonnet*|*SONNET*) MODEL="claude-sonnet" ;;
+    esac
+done
+
+# Start tracking
+if [[ "$TRACKING_ENABLED" == "true" ]]; then
+    usage_start "$MODEL" "$TASK_ID"
+fi
+
+# Create temp file to capture output for size estimation
+OUTPUT_FILE=$(mktemp)
+trap "rm -f $OUTPUT_FILE" EXIT
+
+# Record start time
+START_TIME=$(date +%s)
+
+# Collect input size estimate from arguments
+INPUT_ESTIMATE=0
+for arg in "$@"; do
+    INPUT_ESTIMATE=$((INPUT_ESTIMATE + ${#arg}))
+done
+
+# Run the real claude command, tee output to temp file
+# Note: claude is interactive, so we preserve TTY
+if [[ -t 0 && -t 1 ]]; then
+    # Interactive mode - can't easily capture output
+    claude --dangerously-skip-permissions "$@"
+    EXIT_CODE=$?
+    OUTPUT_SIZE=0
+else
+    # Non-interactive - capture output
+    claude --dangerously-skip-permissions "$@" 2>&1 | tee "$OUTPUT_FILE"
+    EXIT_CODE=${PIPESTATUS[0]}
+    OUTPUT_SIZE=$(wc -c < "$OUTPUT_FILE" 2>/dev/null || echo "0")
+fi
+
+END_TIME=$(date +%s)
+DURATION=$((END_TIME - START_TIME))
+
+# Estimate tokens (rough: ~4 chars per token)
+# For interactive sessions, estimate based on duration
+# Average typing + response: ~100 tokens/minute for light use, ~500 for heavy
+if [[ "$OUTPUT_SIZE" -eq 0 ]]; then
+    # Interactive session - estimate from duration
+    # Assume moderate usage: ~200 tokens/minute input, ~300 tokens/minute output
+    INPUT_TOKENS=$((DURATION * 200 / 60))
+    OUTPUT_TOKENS=$((DURATION * 300 / 60))
+
+    # Minimum estimates for very short sessions
+    [[ $INPUT_TOKENS -lt 100 ]] && INPUT_TOKENS=100
+    [[ $OUTPUT_TOKENS -lt 100 ]] && OUTPUT_TOKENS=100
+else
+    # Non-interactive - estimate from content size
+    INPUT_TOKENS=$((INPUT_ESTIMATE / 4))
+    OUTPUT_TOKENS=$((OUTPUT_SIZE / 4))
+
+    # Minimums
+    [[ $INPUT_TOKENS -lt 50 ]] && INPUT_TOKENS=50
+    [[ $OUTPUT_TOKENS -lt 50 ]] && OUTPUT_TOKENS=50
+fi
+
+# End tracking
+if [[ "$TRACKING_ENABLED" == "true" ]]; then
+    STATUS="completed"
+    [[ $EXIT_CODE -ne 0 ]] && STATUS="failed"
+    usage_end "$MODEL" "$TASK_ID" "$INPUT_TOKENS" "$OUTPUT_TOKENS" "$STATUS"
+
+    # Note in stderr that this is an estimate
+    echo "[claude-tracked] Estimated: ${INPUT_TOKENS}in/${OUTPUT_TOKENS}out tokens (~\$$(echo "scale=4; $INPUT_TOKENS * 3 / 1000000 + $OUTPUT_TOKENS * 15 / 1000000" | bc) for Sonnet)" >&2
+fi
+
+exit $EXIT_CODE

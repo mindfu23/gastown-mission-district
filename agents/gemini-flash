@@ -1,0 +1,12 @@
+#!/bin/bash
+# Gemini Flash Agent - Cheap & Fast tier for Gastown
+# Uses gemini-2.5-flash for cost-efficient simple tasks
+#
+# Best for:
+# - Quick code generation
+# - Simple refactoring
+# - Documentation tasks
+# - High-volume, low-complexity work
+
+export GEMINI_MODEL="gemini-2.5-flash"
+exec "$(dirname "$0")/gemini-agent" --approval-mode yolo "$@"

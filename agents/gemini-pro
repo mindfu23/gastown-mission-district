@@ -1,0 +1,12 @@
+#!/bin/bash
+# Gemini Pro Agent - High capability tier for Gastown
+# Uses gemini-2.5-pro for complex tasks requiring deep reasoning
+#
+# Best for:
+# - Complex architectural decisions
+# - Large codebase analysis (1M token context)
+# - Debugging intricate issues
+# - Multi-file refactoring
+
+export GEMINI_MODEL="gemini-2.5-pro"
+exec "$(dirname "$0")/gemini-agent" --approval-mode yolo "$@"
