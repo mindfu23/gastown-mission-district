@@ -9,8 +9,13 @@ import (
 // implementation against the expected behavioral contract. It runs against the
 // fake (always) and can run against the real Dolt server with build tags.
 func wlCommonsConformance(t *testing.T, newStore func(t *testing.T) WLCommonsStore) {
+	// NOTE: subtests that INSERT/UPDATE/COMMIT must NOT run in parallel
+	// against a shared Dolt server. DOLT_ADD('-A') stages ALL pending
+	// changes globally, so concurrent writers race on the staging area
+	// and one will hit "nothing to commit". Read-only and error-path
+	// subtests can still be parallel.
+
 	t.Run("InsertAndQuery", func(t *testing.T) {
-		t.Parallel()
 		store := newStore(t)
 
 		item := &WantedItem{
@@ -43,7 +48,6 @@ func wlCommonsConformance(t *testing.T, newStore func(t *testing.T) WLCommonsSto
 	})
 
 	t.Run("ClaimOpenItem", func(t *testing.T) {
-		t.Parallel()
 		store := newStore(t)
 
 		if err := store.InsertWanted(&WantedItem{ID: "w-conf02", Title: "Claimable"}); err != nil {
@@ -66,7 +70,6 @@ func wlCommonsConformance(t *testing.T, newStore func(t *testing.T) WLCommonsSto
 	})
 
 	t.Run("ClaimNonOpenItem", func(t *testing.T) {
-		t.Parallel()
 		store := newStore(t)
 
 		if err := store.InsertWanted(&WantedItem{ID: "w-conf03", Title: "Already claimed"}); err != nil {
@@ -94,7 +97,6 @@ func wlCommonsConformance(t *testing.T, newStore func(t *testing.T) WLCommonsSto
 	})
 
 	t.Run("SubmitCompletionLifecycle", func(t *testing.T) {
-		t.Parallel()
 		store := newStore(t)
 
 		if err := store.InsertWanted(&WantedItem{ID: "w-conf04", Title: "Completable"}); err != nil {
@@ -172,7 +174,6 @@ func wlCommonsConformance(t *testing.T, newStore func(t *testing.T) WLCommonsSto
 	})
 
 	t.Run("DefaultStatusIsOpen", func(t *testing.T) {
-		t.Parallel()
 		store := newStore(t)
 
 		if err := store.InsertWanted(&WantedItem{ID: "w-conf05", Title: "Default status"}); err != nil {
@@ -188,7 +189,6 @@ func wlCommonsConformance(t *testing.T, newStore func(t *testing.T) WLCommonsSto
 	})
 
 	t.Run("InsertWithExplicitStatus", func(t *testing.T) {
-		t.Parallel()
 		store := newStore(t)
 
 		if err := store.InsertWanted(&WantedItem{ID: "w-conf06", Title: "Explicit status", Status: "withdrawn"}); err != nil {
@@ -204,7 +204,6 @@ func wlCommonsConformance(t *testing.T, newStore func(t *testing.T) WLCommonsSto
 	})
 
 	t.Run("SubmitCompletionOnOpenItem", func(t *testing.T) {
-		t.Parallel()
 		store := newStore(t)
 
 		if err := store.InsertWanted(&WantedItem{ID: "w-conf08", Title: "Open item"}); err != nil {
@@ -228,7 +227,6 @@ func wlCommonsConformance(t *testing.T, newStore func(t *testing.T) WLCommonsSto
 	})
 
 	t.Run("SubmitCompletionByWrongRig", func(t *testing.T) {
-		t.Parallel()
 		store := newStore(t)
 
 		if err := store.InsertWanted(&WantedItem{ID: "w-conf09", Title: "Wrong rig item"}); err != nil {
@@ -255,7 +253,6 @@ func wlCommonsConformance(t *testing.T, newStore func(t *testing.T) WLCommonsSto
 	})
 
 	t.Run("SubmitCompletionAlreadyDone", func(t *testing.T) {
-		t.Parallel()
 		store := newStore(t)
 
 		if err := store.InsertWanted(&WantedItem{ID: "w-conf11", Title: "Already done"}); err != nil {
@@ -297,7 +294,6 @@ func wlCommonsConformance(t *testing.T, newStore func(t *testing.T) WLCommonsSto
 	})
 
 	t.Run("InsertDuplicateIDFails", func(t *testing.T) {
-		t.Parallel()
 		store := newStore(t)
 
 		if err := store.InsertWanted(&WantedItem{ID: "w-conf10", Title: "First insert"}); err != nil {
@@ -311,7 +307,6 @@ func wlCommonsConformance(t *testing.T, newStore func(t *testing.T) WLCommonsSto
 	})
 
 	t.Run("ClaimSetsClaimedBy", func(t *testing.T) {
-		t.Parallel()
 		store := newStore(t)
 
 		if err := store.InsertWanted(&WantedItem{ID: "w-conf07", Title: "Check claimer"}); err != nil {

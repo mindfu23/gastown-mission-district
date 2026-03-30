@@ -366,6 +366,24 @@ func TestAddWithOptions_HasAgentsMD(t *testing.T) {
 		t.Fatalf("mkdir mayor/rig: %v", err)
 	}
 
+	// Set up beads infrastructure so AddWithOptions can create agent beads.
+	// Use mock bd to avoid requiring a real Dolt server.
+	rigBeads := filepath.Join(root, ".beads")
+	if err := os.MkdirAll(rigBeads, 0755); err != nil {
+		t.Fatalf("mkdir .beads: %v", err)
+	}
+	mayorBeads := filepath.Join(mayorRig, ".beads")
+	if err := os.MkdirAll(mayorBeads, 0755); err != nil {
+		t.Fatalf("mkdir mayor/rig/.beads: %v", err)
+	}
+	rigRedirect := filepath.Join(rigBeads, "redirect")
+	if err := os.WriteFile(rigRedirect, []byte("mayor/rig/.beads\n"), 0644); err != nil {
+		t.Fatalf("write rig redirect: %v", err)
+	}
+	installMockBd(t)
+	// Write the custom-types sentinel so EnsureCustomTypes is a no-op.
+	_ = os.WriteFile(filepath.Join(mayorBeads, ".gt-types-configured"), []byte("v1\n"), 0644)
+
 	// Initialize git repo in mayor/rig
 	cmd := exec.Command("git", "init")
 	cmd.Dir = mayorRig
