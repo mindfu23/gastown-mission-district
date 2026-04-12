@@ -20,6 +20,8 @@ Options:
   --test, -t           Generate test images (multiple styles × test item)
   --output, -o <dir>   Override output directory
   --color, -c <color>  Color variant (name, palette, hex, or list)
+  --take <n>           Take number — prefixes filenames with "take{n}_" (default: none)
+  --reference, -r <f>  Reference image for style matching (passed to imagen)
   --dry-run, -n        Show what would be generated without generating
   --version, -V        Show version information
   --help, -h           Show this help message
@@ -144,9 +146,11 @@ STYLE=""
 TEST_MODE=false
 OUTPUT_DIR=""
 COLOR=""
+TAKE=""
 DRY_RUN=false
 LIST_PROJECTS=false
 LIST_VARIANTS=false
+BATCH_REFERENCES=""
 
 # Parse arguments
 while [[ $# -gt 0 ]]; do
@@ -173,6 +177,14 @@ while [[ $# -gt 0 ]]; do
             ;;
         --color|-c)
             COLOR="$2"
+            shift 2
+            ;;
+        --take)
+            TAKE="$2"
+            shift 2
+            ;;
+        --reference|-r)
+            BATCH_REFERENCES+=" $2"
             shift 2
             ;;
         --dry-run|-n)
@@ -292,6 +304,21 @@ if [[ ${#ITEMS[@]} -eq 0 ]]; then
     exit 1
 fi
 
+# Build reference image flags for imagen calls
+REF_ARGS=""
+if [[ -n "$BATCH_REFERENCES" ]]; then
+    for ref in $BATCH_REFERENCES; do
+        REF_ARGS+=" --reference \"$ref\""
+    done
+fi
+
+# Build take prefix for filenames
+TAKE_PREFIX=""
+if [[ -n "$TAKE" ]]; then
+    TAKE_PREFIX="take${TAKE}_"
+    echo "📌 Take $TAKE — filenames prefixed with '${TAKE_PREFIX}'"
+fi
+
 # Test mode: generate sample images in different styles
 if [[ "$TEST_MODE" == "true" ]]; then
     # Get styles for this variant
@@ -327,17 +354,18 @@ if [[ "$TEST_MODE" == "true" ]]; then
         fi
         
         if [[ "$DRY_RUN" == "true" ]]; then
-            echo "[DRY RUN] Would generate: $TEST_OUTPUT/${VARIANT}_${style}_${item_id}.png"
+            echo "[DRY RUN] Would generate: $TEST_OUTPUT/${TAKE_PREFIX}${VARIANT}_${style}_${item_id}.png"
             echo "          Prompt: $PROMPT"
+            [[ -n "$BATCH_REFERENCES" ]] && echo "          References:$BATCH_REFERENCES"
         else
-            "$IMAGEN" --style "$style" --piece "$item_id" --variant "$VARIANT" --output "$TEST_OUTPUT" "$PROMPT"
+            eval "$IMAGEN" --style "$style" --piece "${TAKE_PREFIX}${item_id}" --variant "$VARIANT" --output "$TEST_OUTPUT" $REF_ARGS "\"$PROMPT\""
         fi
         echo ""
     done
-    
+
     echo "✅ Test images generated in $TEST_OUTPUT/"
     echo "   Review and choose a style, then run:"
-    echo "   imagen-batch $PROJECT --style <chosen-style> $VARIANT"
+    echo "   imagen-batch $PROJECT --take <n> --style <chosen-style> $VARIANT"
     exit 0
 fi
 
@@ -395,6 +423,8 @@ echo "   Items: ${#ITEMS[@]}"
 if [[ ${#COLORS_TO_USE[@]} -gt 0 ]]; then
     echo "   Colors: ${COLORS_TO_USE[*]}"
 fi
+[[ -n "$TAKE" ]] && echo "   Take: $TAKE (prefix: ${TAKE_PREFIX})"
+[[ -n "$BATCH_REFERENCES" ]] && echo "   References:$BATCH_REFERENCES"
 echo ""
 
 # Generate each item
@@ -427,19 +457,20 @@ for item_def in "${ITEMS[@]}"; do
             
             echo "=== $item_name ($color) ==="
             if [[ "$DRY_RUN" == "true" ]]; then
-                echo "[DRY RUN] Would generate: ${item_id}_${COLOR_FILENAME}"
+                echo "[DRY RUN] Would generate: ${TAKE_PREFIX}${item_id}_${COLOR_FILENAME}"
                 echo "          Color: $COLOR_DESC"
+                [[ -n "$BATCH_REFERENCES" ]] && echo "          References:$BATCH_REFERENCES"
             else
-                "$IMAGEN" --style "$STYLE" --piece "${item_id}_${COLOR_FILENAME}" --variant "$VARIANT" --output "$OUTPUT_DIR" \
-                    "$PROMPT, $COLOR_DESC"
+                eval "$IMAGEN" --style "$STYLE" --piece "${TAKE_PREFIX}${item_id}_${COLOR_FILENAME}" --variant "$VARIANT" --output "$OUTPUT_DIR" $REF_ARGS "\"$PROMPT, $COLOR_DESC\""
             fi
         done
     else
         echo "=== $item_name ==="
         if [[ "$DRY_RUN" == "true" ]]; then
-            echo "[DRY RUN] Would generate: $item_id"
+            echo "[DRY RUN] Would generate: ${TAKE_PREFIX}${item_id}"
+            [[ -n "$BATCH_REFERENCES" ]] && echo "          References:$BATCH_REFERENCES"
         else
-            "$IMAGEN" --style "$STYLE" --piece "$item_id" --variant "$VARIANT" --output "$OUTPUT_DIR" "$PROMPT"
+            eval "$IMAGEN" --style "$STYLE" --piece "${TAKE_PREFIX}${item_id}" --variant "$VARIANT" --output "$OUTPUT_DIR" $REF_ARGS "\"$PROMPT\""
         fi
     fi
     
