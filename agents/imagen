@@ -312,11 +312,16 @@ EOF
 )
 fi
 
+# Write request body to temp file to avoid argument-length limits with large base64 images
+REQUEST_FILE=$(mktemp)
+echo "$REQUEST_BODY" > "$REQUEST_FILE"
+trap "rm -f '$REQUEST_FILE'" EXIT
+
 # Make the API call
 RESPONSE=$(curl -s -X POST \
     "https://generativelanguage.googleapis.com/v1beta/models/$MODEL:generateContent?key=$API_KEY" \
     -H "Content-Type: application/json" \
-    -d "$REQUEST_BODY")
+    -d @"$REQUEST_FILE")
 
 # Check for errors
 if echo "$RESPONSE" | jq -e '.error' > /dev/null 2>&1; then
@@ -352,7 +357,7 @@ if [[ $COUNT -gt 1 ]]; then
         RESPONSE=$(curl -s -X POST \
             "https://generativelanguage.googleapis.com/v1beta/models/$MODEL:generateContent?key=$API_KEY" \
             -H "Content-Type: application/json" \
-            -d "$REQUEST_BODY")
+            -d @"$REQUEST_FILE")
         
         IMAGE_DATA=$(echo "$RESPONSE" | jq -r '.candidates[0].content.parts[] | select(.inlineData) | .inlineData.data' 2>/dev/null)
         
